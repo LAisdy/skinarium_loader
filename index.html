@@ -47,7 +47,8 @@
         const SUPABASE_URL = 'https://xmcqllhmkqbmglophbvs.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtY3FsbGhta3FibWdsb3BoYnZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwOTg3NDIsImV4cCI6MjEwNTY3NDc0Mn0.mzD12QmAdO19RGJHFlFlGhQ827dPgfyrH_Kw7D2ZsBQ';
 
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Переименовали переменную, чтобы не конфликтовать с глобальным объектом из CDN
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const authSection = document.getElementById('auth-section');
         const uploadSection = document.getElementById('upload-section');
@@ -74,9 +75,9 @@
             const captchaToken = getCaptchaToken();
             if (!captchaToken) { showStatus('Please complete the Cloudflare check.', true); return; }
 
-            const { error } = await supabase.auth.signInWithPassword({
+            const { error } = await supabaseClient.auth.signInWithPassword({
                 email: email,
-                password,
+                password: password,
                 options: { captchaToken }
             });
 
@@ -94,11 +95,11 @@
             const captchaToken = getCaptchaToken();
             if (!captchaToken) { showStatus('Please complete the Cloudflare check.', true); return; }
 
-            const { error } = await supabase.auth.signUp({
+            const { error } = await supabaseClient.auth.signUp({
                 email: email,
-                password,
+                password: password,
                 options: {
-                    captchaToken,
+                    captchaToken: captchaToken,
                     data: { username: username.trim() }
                 }
             });
@@ -108,7 +109,7 @@
         };
 
         document.getElementById('logout-btn').onclick = async () => {
-            await supabase.auth.signOut();
+            await supabaseClient.auth.signOut();
             checkUser();
         };
 
@@ -120,18 +121,18 @@
             if (!file || !username) { showStatus('Please select a file and enter a username.', true); return; }
             if (file.type !== 'image/png') { showStatus('File must be a PNG.', true); return; }
 
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await supabaseClient.auth.getUser();
             if (!user) { showStatus('You are not signed in.', true); return; }
 
             const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
-            const { error: uploadError } = await supabase.storage
+            const { error: uploadError } = await supabaseClient.storage
                 .from('skins')
                 .upload(filePath, file);
 
             if (uploadError) { showStatus('Upload error: ' + uploadError.message, true); return; }
 
-            const { error: profileError } = await supabase
+            const { error: profileError } = await supabaseClient
                 .from('profiles')
                 .upsert({
                     id: user.id,
@@ -151,7 +152,7 @@
         }
 
         async function checkUser() {
-            const { data: { user } } = await supabase.auth.getUser();
+            const { data: { user } } = await supabaseClient.auth.getUser();
             if (user) {
                 authSection.style.display = 'none';
                 uploadSection.style.display = 'block';
