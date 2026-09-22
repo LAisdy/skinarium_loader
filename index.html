@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Skin loading</title>
+    <title>Skin Uploader</title>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         body { font-family: sans-serif; max-width: 500px; margin: 2rem auto; padding: 1rem; background: #1e1e1e; color: #eee; }
@@ -17,27 +17,27 @@
     </style>
 </head>
 <body>
-    <h1>Skin loading</h1>
+    <h1>Skin Uploader</h1>
 
     <div id="auth-section">
-        <h2>Login</h2>
-       <input type="text" id="username" placeholder="Your Minecraft Nickname">
+        <h2>Sign In</h2>
+        <input type="text" id="username" placeholder="Minecraft Username">
         <input type="password" id="password" placeholder="Password">
         <div class="cf-turnstile" data-sitekey="0x4AAAAAAFAZJwQmsuxmzQ1P" data-theme="dark"></div>
-        <button id="login-btn">Sign in</button>
-        <button id="signup-btn" style="background:#555;">Sign up</button>
+        <button id="login-btn">Sign In</button>
+        <button id="signup-btn" style="background:#555;">Sign Up</button>
     </div>
 
     <div id="upload-section">
-        <h2>Hi, <span id="user-email"></span></h2>
-        <input type="text" id="minecraft-username" placeholder="Твой ник в Minecraft">
+        <h2>Hello, <span id="user-email"></span></h2>
+        <input type="text" id="minecraft-username" placeholder="Minecraft Username">
         <select id="skin-model">
-            <option value="default">Default (Steve)</option>
+            <option value="default">Classic (Steve)</option>
             <option value="slim">Slim (Alex)</option>
         </select>
         <input type="file" id="skin-file" accept="image/png">
-        <button id="upload-btn">Upload</button>
-        <button id="logout-btn" style="background:#555;">Exit</button>
+        <button id="upload-btn">Upload Skin</button>
+        <button id="logout-btn" style="background:#555;">Sign Out</button>
     </div>
 
     <div id="status"></div>
@@ -58,32 +58,53 @@
             return el ? el.value : null;
         }
 
+        function usernameToEmail(username) {
+            const cleanUsername = username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+            if (!cleanUsername) return null;
+            return `${cleanUsername}@local.app`;
+        }
+
         document.getElementById('login-btn').onclick = async () => {
-            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            const email = usernameToEmail(username);
+
+            if (!email) { showStatus('Please enter a valid username.', true); return; }
+
             const captchaToken = getCaptchaToken();
-            if (!captchaToken) { showStatus('Пройдите проверку Cloudflare.', true); return; }
+            if (!captchaToken) { showStatus('Please complete the Cloudflare check.', true); return; }
 
             const { error } = await supabase.auth.signInWithPassword({
-                email, password,
+                email: email,
+                password,
                 options: { captchaToken }
             });
-            if (error) { showStatus('Signing in failed: ' + error.message, true); }
-            else { showStatus('Successfully signed in!'); checkUser(); }
+
+            if (error) { showStatus('Login error: ' + error.message, true); }
+            else { showStatus('Signed in successfully!'); checkUser(); }
         };
 
         document.getElementById('signup-btn').onclick = async () => {
-            const email = document.getElementById('email').value;
+            const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
+            const email = usernameToEmail(username);
+
+            if (!email) { showStatus('Please enter a valid username.', true); return; }
+
             const captchaToken = getCaptchaToken();
-            if (!captchaToken) { showStatus('Pass captcha Cloudflare.', true); return; }
+            if (!captchaToken) { showStatus('Please complete the Cloudflare check.', true); return; }
 
             const { error } = await supabase.auth.signUp({
-                email, password,
-                options: { captchaToken }
+                email: email,
+                password,
+                options: {
+                    captchaToken,
+                    data: { username: username.trim() }
+                }
             });
-            if (error) { showStatus('Error while signing up: ' + error.message, true); }
-            else { showStatus('You have signed up!'); }
+
+            if (error) { showStatus('Sign up error: ' + error.message, true); }
+            else { showStatus('Account created! You can now sign in.'); }
         };
 
         document.getElementById('logout-btn').onclick = async () => {
@@ -96,11 +117,11 @@
             const username = document.getElementById('minecraft-username').value.trim();
             const model = document.getElementById('skin-model').value;
 
-            if (!file || !username) { showStatus('Choose file and nickname.', true); return; }
-            if (file.type !== 'image/png') { showStatus('File must be PNG.', true); return; }
+            if (!file || !username) { showStatus('Please select a file and enter a username.', true); return; }
+            if (file.type !== 'image/png') { showStatus('File must be a PNG.', true); return; }
 
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) { showStatus('You are not signed.', true); return; }
+            if (!user) { showStatus('You are not signed in.', true); return; }
 
             const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
@@ -120,8 +141,8 @@
                     updated_at: new Date().toISOString()
                 });
 
-            if (profileError) { showStatus('Error shile saving: ' + profileError.message, true); }
-            else { showStatus('Your skin is uploaded!'); }
+            if (profileError) { showStatus('Save error: ' + profileError.message, true); }
+            else { showStatus('Skin uploaded successfully! Join the game.'); }
         };
 
         function showStatus(msg, isError = false) {
@@ -134,7 +155,8 @@
             if (user) {
                 authSection.style.display = 'none';
                 uploadSection.style.display = 'block';
-                document.getElementById('user-email').textContent = user.email;
+                const displayName = user.user_metadata?.username || user.email;
+                document.getElementById('user-email').textContent = displayName;
             } else {
                 authSection.style.display = 'block';
                 uploadSection.style.display = 'none';
