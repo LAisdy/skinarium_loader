@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Загрузка скинов</title>
+    <title>Skin loading</title>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <style>
         body { font-family: sans-serif; max-width: 500px; margin: 2rem auto; padding: 1rem; background: #1e1e1e; color: #eee; }
@@ -17,27 +17,27 @@
     </style>
 </head>
 <body>
-    <h1>Загрузка скина</h1>
+    <h1>Skin loading</h1>
 
     <div id="auth-section">
-        <h2>Вход</h2>
-        <input type="email" id="email" placeholder="Email">
-        <input type="password" id="password" placeholder="Пароль">
+        <h2>Login</h2>
+       <input type="text" id="username" placeholder="Your Minecraft Nickname">
+        <input type="password" id="password" placeholder="Password">
         <div class="cf-turnstile" data-sitekey="0x4AAAAAAFAZJwQmsuxmzQ1P" data-theme="dark"></div>
-        <button id="login-btn">Войти</button>
-        <button id="signup-btn" style="background:#555;">Зарегистрироваться</button>
+        <button id="login-btn">Sign in</button>
+        <button id="signup-btn" style="background:#555;">Sign up</button>
     </div>
 
     <div id="upload-section">
-        <h2>Привет, <span id="user-email"></span></h2>
+        <h2>Hi, <span id="user-email"></span></h2>
         <input type="text" id="minecraft-username" placeholder="Твой ник в Minecraft">
         <select id="skin-model">
-            <option value="default">Обычный (Steve)</option>
-            <option value="slim">Тонкий (Alex)</option>
+            <option value="default">Default (Steve)</option>
+            <option value="slim">Slim (Alex)</option>
         </select>
         <input type="file" id="skin-file" accept="image/png">
-        <button id="upload-btn">Загрузить скин</button>
-        <button id="logout-btn" style="background:#555;">Выйти</button>
+        <button id="upload-btn">Upload</button>
+        <button id="logout-btn" style="background:#555;">Exit</button>
     </div>
 
     <div id="status"></div>
@@ -68,22 +68,22 @@
                 email, password,
                 options: { captchaToken }
             });
-            if (error) { showStatus('Ошибка входа: ' + error.message, true); }
-            else { showStatus('Вход выполнен!'); checkUser(); }
+            if (error) { showStatus('Signing in failed: ' + error.message, true); }
+            else { showStatus('Successfully signed in!'); checkUser(); }
         };
 
         document.getElementById('signup-btn').onclick = async () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const captchaToken = getCaptchaToken();
-            if (!captchaToken) { showStatus('Пройдите проверку Cloudflare.', true); return; }
+            if (!captchaToken) { showStatus('Pass captcha Cloudflare.', true); return; }
 
             const { error } = await supabase.auth.signUp({
                 email, password,
                 options: { captchaToken }
             });
-            if (error) { showStatus('Ошибка регистрации: ' + error.message, true); }
-            else { showStatus('Регистрация успешна! Проверьте почту, если включено подтверждение.'); }
+            if (error) { showStatus('Error while signing up: ' + error.message, true); }
+            else { showStatus('You have signed up!'); }
         };
 
         document.getElementById('logout-btn').onclick = async () => {
@@ -96,11 +96,11 @@
             const username = document.getElementById('minecraft-username').value.trim();
             const model = document.getElementById('skin-model').value;
 
-            if (!file || !username) { showStatus('Выберите файл и введите ник.', true); return; }
-            if (file.type !== 'image/png') { showStatus('Файл должен быть PNG.', true); return; }
+            if (!file || !username) { showStatus('Choose file and nickname.', true); return; }
+            if (file.type !== 'image/png') { showStatus('File must be PNG.', true); return; }
 
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user) { showStatus('Вы не авторизованы.', true); return; }
+            if (!user) { showStatus('You are not signed.', true); return; }
 
             const filePath = `${user.id}/${Date.now()}_${file.name}`;
 
@@ -108,7 +108,7 @@
                 .from('skins')
                 .upload(filePath, file);
 
-            if (uploadError) { showStatus('Ошибка загрузки: ' + uploadError.message, true); return; }
+            if (uploadError) { showStatus('Upload error: ' + uploadError.message, true); return; }
 
             const { error: profileError } = await supabase
                 .from('profiles')
@@ -120,8 +120,8 @@
                     updated_at: new Date().toISOString()
                 });
 
-            if (profileError) { showStatus('Ошибка сохранения: ' + profileError.message, true); }
-            else { showStatus('Скин успешно загружен! Зайдите в игру.'); }
+            if (profileError) { showStatus('Error shile saving: ' + profileError.message, true); }
+            else { showStatus('Your skin is uploaded!'); }
         };
 
         function showStatus(msg, isError = false) {
