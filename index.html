@@ -2,10 +2,149 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Skin Uploader</title>
+    <title>Загрузка скинов</title>
+    <style>
+        body { font-family: sans-serif; max-width: 500px; margin: 2rem auto; padding: 1rem; background: #1e1e1e; color: #eee; }
+        input, button, select { display: block; width: 100%; padding: 0.6rem; margin-bottom: 1rem; box-sizing: border-box; border-radius: 6px; border: 1px solid #444; background: #2a2a2a; color: #eee; }
+        button { cursor: pointer; background: #4a6cf7; border: none; font-weight: bold; }
+        button:hover { background: #3a5ce0; }
+        h1, h2 { color: #fff; }
+        #status { margin-top: 1rem; font-weight: bold; color: #6fcf97; }
+        .error { color: #eb5757 !important; }
+        #upload-section { display: none; }
+        #auth-section { display: block; }
+    </style>
 </head>
 <body>
-    <h1>Страница работает!</h1>
-    <p>Скоро здесь будет форма загрузки скинов.</p>
+    <h1>Загрузка скина</h1>
+
+    <!-- Форма входа -->
+    <div id="auth-section">
+        <h2>Вход</h2>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="Пароль">
+        <button id="login-btn">Войти</button>
+        <button id="signup-btn" style="background:#555;">Зарегистрироваться</button>
+    </div>
+
+    <!-- Форма загрузки скина -->
+    <div id="upload-section">
+        <h2>Привет, <span id="user-email"></span></h2>
+        <input type="text" id="minecraft-username" placeholder="Твой ник в Minecraft">
+        <select id="skin-model">
+            <option value="default">Обычный (Steve)</option>
+            <option value="slim">Тонкий (Alex)</option>
+        </select>
+        <input type="file" id="skin-file" accept="image/png">
+        <button id="upload-btn">Загрузить скин</button>
+        <button id="logout-btn" style="background:#555;">Выйти</button>
+    </div>
+
+    <div id="status"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // ===== НАСТРОЙКИ =====
+        const SUPABASE_URL = 'https://xmcqllhmkqbmglophbvs.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhtY3FsbGhta3FibWdsb3BoYnZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAwOTg3NDIsImV4cCI6MjEwNTY3NDc0Mn0.mzD12QmAdO19RGJHFlFlGhQ827dPgfyrH_Kw7D2ZsBQ';
+
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // ===== ЭЛЕМЕНТЫ =====
+        const authSection = document.getElementById('auth-section');
+        const uploadSection = document.getElementById('upload-section');
+        const statusDiv = document.getElementById('status');
+
+        // ===== АУТЕНТИФИКАЦИЯ =====
+        document.getElementById('login-btn').onclick = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) { showStatus('Ошибка входа: ' + error.message, true); }
+            else { showStatus('Вход выполнен!'); checkUser(); }
+        };
+
+        document.getElementById('signup-btn').onclick = async () => {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const { error } = await supabase.auth.signUp({ email, password });
+            if (error) { showStatus('Ошибка регистрации: ' + error.message, true); }
+            else { showStatus('Регистрация успешна! Проверьте почту, если включено подтверждение.'); }
+        };
+
+        document.getElementById('logout-btn').onclick = async () => {
+            await supabase.auth.signOut();
+            checkUser();
+        };
+
+        // ===== ЗАГРУЗКА СКИНА =====
+        document.getElementById('upload-btn').onclick = async () => {
+            const file = document.getElementById('skin-file').files[0];
+            const username = document.getElementById('minecraft-username').value.trim();
+            const model = document.getElementById('skin-model').value;
+
+            if (!file || !username) {
+                showStatus('Выберите файл и введите ник.', true);
+                return;
+            }
+            if (file.type !== 'image/png') {
+                showStatus('Файл должен быть PNG.', true);
+                return;
+            }
+
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) { showStatus('Вы не авторизованы.', true); return; }
+
+            // Уникальное имя файла с меткой времени, чтобы CDN не кэшировал старую версию
+            const filePath = `${user.id}/${Date.now()}_${file.name}`;
+
+            // 1. Загружаем файл в Storage
+            const { error: uploadError } = await supabase.storage
+                .from('skins')
+                .upload(filePath, file);
+
+            if (uploadError) {
+                showStatus('Ошибка загрузки: ' + uploadError.message, true);
+                return;
+            }
+
+            // 2. Сохраняем запись в profiles
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    username: username,
+                    skin_path: filePath,
+                    model: model,
+                    updated_at: new Date().toISOString()
+                });
+
+            if (profileError) {
+                showStatus('Ошибка сохранения: ' + profileError.message, true);
+            } else {
+                showStatus('Скин успешно загружен! Зайдите в игру.');
+            }
+        };
+
+        // ===== СЛУЖЕБНЫЕ ФУНКЦИИ =====
+        function showStatus(msg, isError = false) {
+            statusDiv.textContent = msg;
+            statusDiv.className = isError ? 'error' : '';
+        }
+
+        async function checkUser() {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                authSection.style.display = 'none';
+                uploadSection.style.display = 'block';
+                document.getElementById('user-email').textContent = user.email;
+            } else {
+                authSection.style.display = 'block';
+                uploadSection.style.display = 'none';
+            }
+        }
+
+        checkUser();
+    </script>
 </body>
 </html>
